@@ -1,6 +1,7 @@
 import os
 import shutil
 import math
+import yaml
 import cv2
 import imagehash
 import logging
@@ -23,33 +24,35 @@ class YoutubeVideosToSheetMusicPDF:
     4. Merge .png files into a pdf.
     """
 
-    def __init__(self, youtube_url: str, root_dir: str, start_seconds: int) -> None:
+    def __init__(self, config_path: str) -> None:
         """
         Initialize a YoutubeVideosToSheetMusicPDF instance with the provided parameters.
 
         Args:
-            youtube_url (str): The URL of the YouTube video to be downloaded.
-            root_dir (str): The root directory. In here directories will be created
-                where the .mp4, .png, and .pdf files are stored.
-            start_seconds (int): The number of seconds to delay before starting the 
-                screenshot capture loop.
-
+            config_path (str): The path to the configuration file.
+            
         Initializes an instance of the YoutubeVideosToSheetMusicPDF class with the 
         specified YouTube URL, download directory, screenshots directory, and start
         time in seconds. The class can be used to download the YouTube video
         and capture screenshots from the video.
         """
 
-        self.youtube_url = youtube_url
-        self.root_dir = root_dir
-        self.start_seconds = start_seconds
+        # Load configuration file.
+        with open(config_path, 'r') as config_file:
+            self.config = yaml.safe_load(config_file)
+
+        self.youtube_url = self.config['URL']
+        self.root_dir = self.config['ROOT_DIR']
+        self.start_seconds = self.config['START_SECONDS']
+        self.end_seconds = self.config['END_SECONDS']
+        self.crop_dimensions = self.config['CROP_DIMENSIONS']
 
         self.youtube_save_path = f'{self.root_dir}/videos'
         self.screenshots_dir = f'{self.root_dir}/screenshots'
         self.pdf_dir = f'{self.root_dir}/pdfs'
 
         self.file_name = YouTube(self.youtube_url).title
-        self.file_name = " ".join(self.file_name.replace('|', ' ').split())
+        self.file_name = " ".join(self.file_name.replace('|', ' ').replace('*', ' ').split())
         self.file_path = f'{self.youtube_save_path}/{self.file_name}.mp4'
         self.screenshots_save_path = f'{self.screenshots_dir}/{self.file_name}'
         self.pdf_path = f'{self.pdf_dir}/{self.file_name}.pdf'
@@ -94,7 +97,7 @@ class YoutubeVideosToSheetMusicPDF:
 
         logging.info('Done.\n')
 
-    def capture_screenshots(self, interval_seconds: int=3) -> None:
+    def capture_screenshots(self, interval_seconds: int=4) -> None:
         """
         Capture screenshots at specified time intervals from a video file and 
         save them as PNG images. This method opens a video file, reads frames at 
@@ -156,7 +159,36 @@ class YoutubeVideosToSheetMusicPDF:
         cap.release()
         logging.info('Done.\n')
 
-    def remove_duplicate_images(self) -> None:
+    def crop_images(self) -> None:
+        """
+        """
+        
+        # Printing task
+        logging.info('Cropping images...')
+
+
+        for root, _, files in os.walk(self.screenshots_save_path):
+            for file in tqdm(files):
+                file_path = f'{root}/{file}'
+
+                # Open the image and create average hash.
+                with PILImage.open(file_path) as img:
+                    # Obtain current width and height of the image.
+                    width, height = img.size
+
+                    # Obtain new cropped image.
+                    cropped_image = img.crop((
+                        self.crop_dimensions[0] * width,
+                        self.crop_dimensions[1] * height,
+                        self.crop_dimensions[2] * width,
+                        self.crop_dimensions[3] * height
+                    ))
+
+                    cropped_image.save(f'{root}/{file}')
+            logging.info('Done.\n')
+
+
+    def remove_duplicate_images(self, threshold: int=1) -> None:
         """
         Remove duplicate PNG images from the specified directory 
         using image hashing.
@@ -167,7 +199,8 @@ class YoutubeVideosToSheetMusicPDF:
         library to efficiently compare images.
 
         Args:
-            None
+            threshold (int): The threshold that determines if images
+                are equal to each other. (default=2)
 
         Returns:
             None
@@ -177,24 +210,28 @@ class YoutubeVideosToSheetMusicPDF:
         logging.info('Deleting all duplicate images.')
 
         # Empty list for the duplicate images.
-        image_hashes = {}
+        non_duplicate_images = []
         duplicate_images = []
+        all_hashes = []
 
         # Loop through screenshots/files.
-        for root, _, files in tqdm(os.walk(self.screenshots_save_path)):
-            for file in files:
-                if file.endswith('.png'):
-                    file_path = f'{root}/{file}'
+        for root, _, files in os.walk(self.screenshots_save_path):
+            for i, file in tqdm(enumerate(files)):
+                file_path = f'{root}/{file}'
 
-                    # Open the image and create average hash.
-                    with PILImage.open(file_path) as img:
-                        img_hash = imagehash.average_hash(img)
+                # Open the image and create average hash.
+                with PILImage.open(file_path) as img:
+                    all_hashes.append(imagehash.average_hash(img))
 
-                    # Create a list for the duplicate images.
-                    if img_hash in image_hashes:
+                if i == 0:
+                    non_duplicate_images.append(file_path)
+                else:
+                    hamming_distance = all_hashes[-1] - all_hashes[-2]
+                    print(file, hamming_distance)
+                    if hamming_distance < threshold:
                         duplicate_images.append(file_path)
-                    else:
-                        image_hashes[img_hash] = file_path
+                    elif hamming_distance >= threshold:
+                        non_duplicate_images.append(file_path)
 
         # Remove duplicate images.
         for duplicate_image in duplicate_images:
@@ -249,17 +286,12 @@ class YoutubeVideosToSheetMusicPDF:
         doc.build(elements)
         logging.info('Done.\n')  
 
-youtube_url = "https://www.youtube.com/watch?v=TibPnIbUTQg"
-root_dir = 'C:/Users/afbru/OneDrive/Documenten/Git repo\'s & programs/Youtube-Sheets-Downloader_temp'
-start_seconds = 10
 
-YouTubeToPDFConverter = YoutubeVideosToSheetMusicPDF(
-    youtube_url,
-    root_dir,
-    start_seconds
-)
+CONFIG_PATH = 'config.yaml'
+YouTubeToPDFConverter = YoutubeVideosToSheetMusicPDF(CONFIG_PATH)
 
-YouTubeToPDFConverter.youtube_videos_downloader()
-YouTubeToPDFConverter.capture_screenshots()
+#YouTubeToPDFConverter.youtube_videos_downloader()
+#YouTubeToPDFConverter.capture_screenshots()
+#YouTubeToPDFConverter.crop_images()
 YouTubeToPDFConverter.remove_duplicate_images()
 YouTubeToPDFConverter.create_pdf_from_pngs()

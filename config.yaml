@@ -1,0 +1,14 @@
+ROOT_DIR: "C:/Users/afbru/OneDrive/Documenten/Git repos & programs/YT2SheetMusic"
+URL: "https://www.youtube.com/watch?v=J1tkMPdd1VY"
+
+START_SECONDS: 0 # The number of seconds after which you want to capture screeshots.
+END_SECONDS: 0 # The number of seconds before the end of the video you want to stop capturing screenshots.
+
+# If the sheet music does not fill the whole screen, but only, for example, the
+# lower part of the screen, image cropping is what you want. The upper left 
+# corner has coordinates (0,0), and the lower right corner has coordinates (1,1).
+CROP_DIMENSIONS:
+  - 0 # Left
+  - 0.70 # Top
+  - 1 # Right
+  - 1 # Bottom
