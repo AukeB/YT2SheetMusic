@@ -17,6 +17,11 @@ from reportlab.platypus import SimpleDocTemplate, Image
 
 logging.getLogger().setLevel(logging.INFO)
 
+# Todo
+# check with n_images
+# use originial images and create temporary black and white directory.
+# optimize images to pdf step.
+
 
 class YoutubeVideosToSheetMusicPDF:
     """
@@ -238,6 +243,10 @@ class YoutubeVideosToSheetMusicPDF:
                 _, bw_image = cv2.threshold(image, threshold, new_rgb_value, cv2.THRESH_BINARY)
 
                 # Overwrite image.
+                # TODO don't overwrite, but make a temporary folder with black
+                # and white images. Only use these images for seeing if there are
+                # duplicates. Afterwards keep the originial image and delete
+                # black and white image folder.
                 cv2.imwrite(f"{root}/{file}", bw_image)
 
         logging.info("Done.\n")
